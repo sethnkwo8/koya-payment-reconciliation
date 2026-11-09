@@ -5,14 +5,39 @@
 
 const fs = require("fs");
 
+function parseAmount(amount) {
+  if (typeof amount === "number") return amount;
+  return Number(String(amount).replace(/,/g, ""));
+}
+
+const latestByTxn = {};
+
+for (const line of fs.readFileSync("payments.jsonl", "utf8").split("\n")) {
+  const trimmed = line.trim();
+  if (!trimmed) continue;
+
+  let event;
+  try {
+    event = JSON.parse(trimmed);
+  } catch {
+    continue;
+  }
+
+  const txnId = event.txn_id;
+  if (!txnId) continue;
+
+  const ts = event.ts ?? "";
+  const prev = latestByTxn[txnId];
+  if (!prev || ts > (prev.ts ?? "")) {
+    latestByTxn[txnId] = event;
+  }
+}
+
 let total = 0;
 let count = 0;
-
-const lines = fs.readFileSync("payments.jsonl", "utf8").split("\n").filter((l) => l.length > 0);
-for (const line of lines) {
-  const event = JSON.parse(line);
+for (const event of Object.values(latestByTxn)) {
   if (event.status === "success") {
-    total += Number(event.amount);
+    total += parseAmount(event.amount);
     count += 1;
   }
 }
